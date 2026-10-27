@@ -1,0 +1,109 @@
+# Local regression fixture: unittest/sql/engine/expr/mock_ai_service.py
+# This is not the competition-provided test file.
+connection default;
+--disable_query_log
+CALL DBMS_AI_SERVICE.CREATE_AI_MODEL('enhancement_c', '{"type": "completion", "model_name": "fixture-c"}');
+CALL DBMS_AI_SERVICE.CREATE_AI_MODEL_ENDPOINT('enhancement_c_ep', '{"ai_model_name": "enhancement_c", "provider": "openai", "url": "http://127.0.0.1:8000/v1/chat/completions", "access_key": "fixture-key"}');
+CALL DBMS_AI_SERVICE.CREATE_AI_MODEL('enhancement_e', '{"type": "dense_embedding", "model_name": "fixture-e"}');
+CALL DBMS_AI_SERVICE.CREATE_AI_MODEL_ENDPOINT('enhancement_e_ep', '{"ai_model_name": "enhancement_e", "provider": "openai", "url": "http://127.0.0.1:8000/v1/embeddings", "access_key": "fixture-key"}');
+CALL DBMS_AI_SERVICE.CREATE_AI_MODEL('enhancement_r', '{"type": "rerank", "model_name": "fixture-r"}');
+CALL DBMS_AI_SERVICE.CREATE_AI_MODEL_ENDPOINT('enhancement_r_ep', '{"ai_model_name": "enhancement_r", "provider": "siliconflow", "url": "http://127.0.0.1:8000/v1/rerank", "access_key": "fixture-key"}');
+CALL DBMS_AI_SERVICE.CREATE_AI_MODEL('enhancement_o', '{"type": "completion", "model_name": "fixture-o"}');
+CALL DBMS_AI_SERVICE.CREATE_AI_MODEL_ENDPOINT('enhancement_o_ep', '{"ai_model_name": "enhancement_o", "provider": "oLlAmA", "url": "http://127.0.0.1:8000/api/generate", "access_key": ""}');
+CALL DBMS_AI_SERVICE.CREATE_AI_MODEL('enhancement_oe', '{"type": "dense_embedding", "model_name": "fixture-oe"}');
+CALL DBMS_AI_SERVICE.CREATE_AI_MODEL_ENDPOINT('enhancement_oe_ep', '{"ai_model_name": "enhancement_oe", "provider": "OLLAMA", "url": "http://127.0.0.1:8000/api/embed", "access_key": ""}');
+CREATE TABLE enhancement_text(id INT PRIMARY KEY, body LONGTEXT, template TEXT);
+INSERT INTO enhancement_text VALUES(1,REPEAT('雪',70000),'{0}'),(2,NULL,'{0}'),(3,'abc','{0}{0}');
+let $ok = `SELECT JSON_UNQUOTE(AI_COMPLETE('enhancement_c','plain',NULL)) = 'plain'`;
+if (!$ok)
+{
+  --die AI enhancement assertion 1 failed
+}
+let $ok = `SELECT JSON_UNQUOTE(AI_COMPLETE('enhancement_c',AI_PROMPT('{0}/{0}','repeat'))) = 'repeat/repeat'`;
+if (!$ok)
+{
+  --die AI enhancement assertion 2 failed
+}
+let $ok = `SELECT JSON_UNQUOTE(AI_COMPLETE('enhancement_c',AI_PROMPT('{0}',AI_PROMPT('<{0}>','雪')))) = '<雪>'`;
+if (!$ok)
+{
+  --die AI enhancement assertion 3 failed
+}
+let $ok = `SELECT JSON_UNQUOTE(AI_COMPLETE('enhancement_c',AI_PROMPT('{0}',JSON_ARRAY(1,2)))) = '[1, 2]'`;
+if (!$ok)
+{
+  --die AI enhancement assertion 4 failed
+}
+let $ok = `SELECT JSON_UNQUOTE(AI_COMPLETE('enhancement_c',AI_PROMPT('{0}',JSON_OBJECT('x',1)))) = '{"x": 1}'`;
+if (!$ok)
+{
+  --die AI enhancement assertion 5 failed
+}
+let $ok = `SELECT JSON_UNQUOTE(AI_COMPLETE('enhancement_c','config',JSON_OBJECT('temperature',0.5,'max_tokens',10))) = 'config'`;
+if (!$ok)
+{
+  --die AI enhancement assertion 6 failed
+}
+let $ok = `SELECT JSON_LENGTH(AI_EMBED('enhancement_e','a')) = 4`;
+if (!$ok)
+{
+  --die AI enhancement assertion 7 failed
+}
+let $ok = `SELECT JSON_LENGTH(AI_EMBED('enhancement_e','a',7)) = 7`;
+if (!$ok)
+{
+  --die AI enhancement assertion 8 failed
+}
+let $ok = `SELECT AI_EMBED('enhancement_e',NULL) IS NULL`;
+if (!$ok)
+{
+  --die AI enhancement assertion 9 failed
+}
+let $ok = `SELECT JSON_UNQUOTE(AI_COMPLETE('enhancement_o','native')) = 'native'`;
+if (!$ok)
+{
+  --die AI enhancement assertion 10 failed
+}
+let $ok = `SELECT JSON_LENGTH(AI_EMBED('enhancement_oe','a')) = 4`;
+if (!$ok)
+{
+  --die AI enhancement assertion 11 failed
+}
+let $ok = `SELECT JSON_EXTRACT(AI_RERANK('enhancement_r','q',JSON_ARRAY('a','long','bb')), '$[0].index') = 1`;
+if (!$ok)
+{
+  --die AI enhancement assertion 12 failed
+}
+let $ok = `SELECT JSON_EXTRACT(AI_RERANK('enhancement_r','q',JSON_ARRAY(JSON_OBJECT('id',8,'text','a'),JSON_OBJECT('id',9,'text','long')),'text'), '$[0].id') = 9`;
+if (!$ok)
+{
+  --die AI enhancement assertion 13 failed
+}
+let $ok = `SELECT CHAR_LENGTH(JSON_UNQUOTE(AI_COMPLETE('enhancement_c',AI_PROMPT(template,body)))) = 70000 FROM enhancement_text WHERE id=1`;
+if (!$ok)
+{
+  --die AI enhancement assertion 14 failed
+}
+let $ok = `SELECT SUM(IF(id=2,vec IS NULL,JSON_LENGTH(vec)=7)) = 3 FROM (SELECT id,AI_EMBED('enhancement_e',body,7) vec FROM enhancement_text) t`;
+if (!$ok)
+{
+  --die AI enhancement assertion 15 failed
+}
+let $ok = `SELECT JSON_UNQUOTE(AI_COMPLETE('enhancement_c',AI_PROMPT(template,body))) = 'abcabc' FROM enhancement_text WHERE id=3`;
+if (!$ok)
+{
+  --die AI enhancement assertion 16 failed
+}
+DROP TABLE enhancement_text;
+CALL DBMS_AI_SERVICE.DROP_AI_MODEL_ENDPOINT('enhancement_oe_ep');
+CALL DBMS_AI_SERVICE.DROP_AI_MODEL('enhancement_oe');
+CALL DBMS_AI_SERVICE.DROP_AI_MODEL_ENDPOINT('enhancement_o_ep');
+CALL DBMS_AI_SERVICE.DROP_AI_MODEL('enhancement_o');
+CALL DBMS_AI_SERVICE.DROP_AI_MODEL_ENDPOINT('enhancement_r_ep');
+CALL DBMS_AI_SERVICE.DROP_AI_MODEL('enhancement_r');
+CALL DBMS_AI_SERVICE.DROP_AI_MODEL_ENDPOINT('enhancement_e_ep');
+CALL DBMS_AI_SERVICE.DROP_AI_MODEL('enhancement_e');
+CALL DBMS_AI_SERVICE.DROP_AI_MODEL_ENDPOINT('enhancement_c_ep');
+CALL DBMS_AI_SERVICE.DROP_AI_MODEL('enhancement_c');
+--echo AI enhancement smoke checks passed
+--enable_query_log

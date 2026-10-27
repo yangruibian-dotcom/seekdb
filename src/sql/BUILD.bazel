@@ -164,7 +164,7 @@ cc_library(
         if dep not in _SQL_PUBLIC_CLOSURE_SHARE_DEPS
     ],
     tags = ["manual"],
-    visibility = ["//src:__subpackages__"],
+    visibility = ["//src:__subpackages__", "//unittest/sql/engine/expr:__pkg__"],
 )
 
 # Observer is the final composition root for the legacy physical retrieval
