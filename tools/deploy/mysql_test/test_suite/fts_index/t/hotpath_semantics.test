@@ -1,0 +1,47 @@
+# owner group: storage
+# tags: fts
+# description: Character classes, batch boundaries, token frequencies and MATCH rows.
+# Expected results are assertions; run on both baseline and candidate.
+--disable_query_log
+SET NAMES utf8mb4;
+SET ob_query_timeout = 10000000000;
+--disable_warnings
+DROP TABLE IF EXISTS fts_hotpath_ik;
+DROP TABLE IF EXISTS fts_hotpath_beng;
+--enable_warnings
+
+SELECT JSON_LENGTH(TOKENIZE(NULL, 'ik')) = 0 AS ok;
+SELECT JSON_LENGTH(TOKENIZE('', 'beng')) = 0 AS ok;
+SELECT JSON_CONTAINS(TOKENIZE('HeLLo', 'ik'), JSON_QUOTE('hello')) = 1 AS ok;
+SELECT JSON_CONTAINS(TOKENIZE('ＡＢＣ', 'ik'), JSON_QUOTE('ａｂｃ')) = 1 AS ok;
+SELECT JSON_EXTRACT(TOKENIZE('hello hello world', 'ik', '[{"output":"all"}]'), '$.doc_len') = 3 AS ok;
+SELECT JSON_CONTAINS(JSON_EXTRACT(TOKENIZE('hello hello world', 'ik', '[{"output":"all"}]'), '$.tokens'), JSON_OBJECT('hello', 2)) = 1 AS ok;
+SELECT JSON_EXTRACT(TOKENIZE('Hello, HELLO! world.', 'beng', '[{"output":"all"}]'), '$.doc_len') = 3 AS ok;
+SELECT JSON_CONTAINS(JSON_EXTRACT(TOKENIZE('Hello, HELLO! world.', 'beng', '[{"output":"all"}]'), '$.tokens'), JSON_OBJECT('hello', 2)) = 1 AS ok;
+SELECT JSON_LENGTH(TOKENIZE(CONCAT('hello', CHAR(0), 'world'), 'beng')) = 2 AS ok;
+SELECT JSON_LENGTH(TOKENIZE(REPEAT('a', 85), 'beng')) = 0 AS ok;
+SELECT JSON_EXTRACT(TOKENIZE(REPEAT('hello world ', 1024), 'ik', '[{"output":"all"}]'), '$.doc_len') = 2048 AS ok;
+SELECT JSON_CONTAINS(JSON_EXTRACT(TOKENIZE(REPEAT('hello world ', 1024), 'ik', '[{"output":"all"}]'), '$.tokens'), JSON_OBJECT('hello', 1024)) = 1 AS ok;
+
+# Build IK after loading; exercise title/content together.
+CREATE TABLE fts_hotpath_ik(id INT PRIMARY KEY, title VARCHAR(128), body TEXT);
+INSERT INTO fts_hotpath_ik VALUES
+  (1, '中国', 'hello database'), (2, '世界', 'hello world'),
+  (3, '中国', 'database search'), (4, '其他', 'unrelated words');
+CREATE FULLTEXT INDEX ft_ik ON fts_hotpath_ik(title, body) WITH PARSER ik;
+SELECT GROUP_CONCAT(id ORDER BY id) AS ids FROM fts_hotpath_ik WHERE MATCH(title, body) AGAINST('hello');
+SELECT GROUP_CONCAT(id ORDER BY id) AS ids FROM fts_hotpath_ik WHERE MATCH(title, body) AGAINST('中国');
+SELECT GROUP_CONCAT(id ORDER BY id) AS ids FROM fts_hotpath_ik WHERE MATCH(title, body) AGAINST('+中国 +hello' IN BOOLEAN MODE);
+SELECT id FROM fts_hotpath_ik WHERE MATCH(title, body) AGAINST('hello') ORDER BY id LIMIT 1;
+
+# BENG writes into an existing index, then update/delete maintenance.
+CREATE TABLE fts_hotpath_beng(id INT PRIMARY KEY, body TEXT, FULLTEXT INDEX ft_beng(body) WITH PARSER beng);
+INSERT INTO fts_hotpath_beng VALUES (1, 'Hello, HELLO!'), (2, 'hello world'), (3, 'database search');
+SELECT GROUP_CONCAT(id ORDER BY id) AS ids FROM fts_hotpath_beng WHERE MATCH(body) AGAINST('hello');
+UPDATE fts_hotpath_beng SET body = 'database updated' WHERE id = 1;
+DELETE FROM fts_hotpath_beng WHERE id = 2;
+SELECT GROUP_CONCAT(id ORDER BY id) AS ids FROM fts_hotpath_beng WHERE MATCH(body) AGAINST('database');
+SELECT COUNT(*) = 0 AS ok FROM fts_hotpath_beng WHERE MATCH(body) AGAINST('hello');
+DROP TABLE fts_hotpath_beng;
+DROP TABLE fts_hotpath_ik;
+--enable_query_log
