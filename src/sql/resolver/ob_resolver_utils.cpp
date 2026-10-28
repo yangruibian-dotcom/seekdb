@@ -1678,6 +1678,7 @@ stmt::StmtType ObResolverUtils::get_stmt_type_by_item_type(const ObItemType item
     type = stmt::item_type;      \
   } break;
       // dml
+      case T_FILE_DESCRIBE: type = stmt::T_SELECT; break;
       SET_STMT_TYPE(T_SELECT);
       SET_STMT_TYPE(T_INSERT);
       SET_STMT_TYPE(T_DELETE);

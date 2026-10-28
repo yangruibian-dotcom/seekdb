@@ -36,6 +36,16 @@ load(
 
 package(default_visibility = ["//visibility:private"])
 
+# Format-only target for bounded-memory scanner tests; no query-engine dependency.
+cc_library(
+    name = "file_sql_readers",
+    srcs = ["engine/basic/file_sql.cpp", "engine/basic/file_sql_parquet.cpp"],
+    hdrs = ["engine/basic/file_sql.h"],
+    includes = [".."],
+    deps = ["//bazel/third_party:rapidjson_headers", "//bazel/third_party:fast_float_headers"],
+    visibility = ["//unittest/sql/engine/basic:__pkg__"],
+)
+
 _SQL_RUNTIME_ONLY_SHARE_DEPS = [
     "//src/share:checksum_persistence",
     "//src/share:cluster_metadata_persistence",

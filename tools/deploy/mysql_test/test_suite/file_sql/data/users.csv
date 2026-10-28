@@ -1,0 +1,6 @@
+id,name,team,amount,active
+1,Alice,A,10.5,true
+2,Bob,A,20,false
+3,中文,B,5.5,true
+4,"New
+Line",B,,true

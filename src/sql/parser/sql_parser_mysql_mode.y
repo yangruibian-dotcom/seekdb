@@ -41,6 +41,15 @@
 #include "sql/parser/sql_parser_mysql_mode_lex.h"
 #include "sql/parser/sql_parser_base.h"
 
+static int file_sql_has_table(const ParseNode *node, int depth)
+{
+  if (node == NULL || depth > 1024) return 0;
+  if (node->type_ == T_FILE_TABLE_EXPRESSION) return 1;
+  for (int i = 0; i < node->num_child_; ++i)
+    if (file_sql_has_table(node->children_[i], depth + 1)) return 1;
+  return 0;
+}
+
 #define GEN_EXPLAN_STMT(no_use, explain_stmt, explain_type, display_type, stmt, into_table, set_statement_id) \
   (void)(no_use); \
   ParseNode *type_node = NULL; \
@@ -293,7 +302,7 @@ END_P SET_VAR DELIMITER
         GENERAL GEOMETRY GEOMCOLLECTION GEOMETRYCOLLECTION GET_FORMAT GLOBAL GRANTS GROUP_CONCAT GROUPING
         GLOBAL_ALIAS
 
-        HASH HEAP HELP HISTOGRAM HOUR HIDDEN HYBRID HYBRID_HIST HYBRID_SEARCH
+        HASH HEAP HELP HISTOGRAM HOUR HIDDEN HYBRID HYBRID_HIST HYBRID_SEARCH FILE_SQL_FUNCTION FILE_SQL_COPY
 
         IDENTIFIED IK_MODE ILOG IMMEDIATE IMPORT INCLUDING INCR INDEXES INFO
         INNODB INPLACE INSERT_METHOD INSTANT INSTANCE INVOKER IO IO_THREAD IPC ISOLATE ISOLATION ISSUER
@@ -512,6 +521,8 @@ END_P SET_VAR DELIMITER
 %type <node> column_list_with_boost with_param_column_ref
 %type <node> es_sql_opt
 %type <node> hybrid_search_expr hybrid_search_param
+%type <node> file_sql_table file_sql_name file_sql_args file_sql_arg file_sql_value
+%type <node> file_copy_stmt file_copy_source file_copy_options file_copy_option file_copy_option_list
 %type <node> vector_similarity_expr vector_similarity_metric
 %type <node> algorithm_opt lock_opt
 %type <node> flush_privileges_stmt opt_flush_privileges_scope
@@ -557,6 +568,7 @@ opt_end_p:
 /* only preparable statement will set question mark size */
 stmt:
     select_stmt             { $$ = $1; question_mark_issue($$, result); }
+  | file_copy_stmt          { $$ = $1; check_question_mark($$, result); }
   | insert_stmt             { $$ = $1; question_mark_issue($$, result); }
   | create_table_stmt       {
     $$ = $1;
@@ -10849,6 +10861,10 @@ tbl_name
 {
   $$ = $1;
 }
+| file_sql_table
+{
+  $$ = $1;
+}
 ;
 
 tbl_name:
@@ -12266,7 +12282,11 @@ explain_or_desc relation_factor opt_desc_column_option
   malloc_non_terminal_node($$, result->malloc_pool_, T_SHOW_COLUMNS, 4, $$, $2, NULL, $3);
 }
 
-| explain_or_desc explainable_stmt { GEN_EXPLAN_STMT($1, $$, 0, 0, $2, NULL, NULL);}
+| explain_or_desc explainable_stmt {
+  if ($1 != NULL && $2->type_ == T_SELECT && file_sql_has_table($2, 0)) {
+    malloc_non_terminal_node($$, result->malloc_pool_, T_FILE_DESCRIBE, 1, $2);
+  } else { GEN_EXPLAN_STMT($1, $$, 0, 0, $2, NULL, NULL); }
+}
 | explain_or_desc PRETTY explainable_stmt { GEN_EXPLAN_STMT($1, $$, 0, T_PRETTY, $3, NULL, NULL);}
 | explain_or_desc PRETTY_COLOR explainable_stmt { GEN_EXPLAN_STMT($1, $$, 0, T_PRETTY_COLOR, $3, NULL, NULL);}
 
@@ -12307,8 +12327,8 @@ explain_or_desc relation_factor opt_desc_column_option
 
 explain_or_desc:
 EXPLAIN {$$ = NULL;}
-| DESCRIBE {$$ = NULL;}
-| DESC  {$$ = NULL;}
+| DESCRIBE { malloc_terminal_node($$, result->malloc_pool_, T_FILE_DESCRIBE); }
+| DESC  { malloc_terminal_node($$, result->malloc_pool_, T_FILE_DESCRIBE); }
 ;
 
 explainable_stmt:
@@ -17452,6 +17472,107 @@ UNNEST '(' simple_expr_list ')'
 }
 ;
 
+file_copy_stmt:
+FILE_SQL_COPY file_copy_source TO STRING_VALUE file_copy_options
+{
+  $$ = $2;
+  if ($$->children_[PARSE_SELECT_INTO] || $$->children_[PARSE_SELECT_INTO_EXTRA]) { yyerror(&@2, result, "COPY source cannot contain INTO"); YYERROR; }
+  malloc_non_terminal_node($$->children_[PARSE_SELECT_INTO_EXTRA], result->malloc_pool_, T_FILE_COPY, 2, $4, $5);
+}
+;
+file_copy_source:
+select_with_parens { $$ = $1; }
+| relation_factor
+{
+  ParseNode *star = NULL, *project = NULL, *projects = NULL, *table = NULL, *tables = NULL;
+  malloc_terminal_node(star, result->malloc_pool_, T_STAR);
+  malloc_non_terminal_node(project, result->malloc_pool_, T_PROJECT_STRING, 1, star);
+  dup_string_to_node(project, result->malloc_pool_, "*");
+  merge_nodes(projects, result, T_PROJECT_LIST, project);
+  malloc_non_terminal_node(table, result->malloc_pool_, T_ORG, 4, $1, NULL, NULL, NULL);
+  merge_nodes(tables, result, T_FROM_LIST, table);
+  malloc_select_node($$, result->malloc_pool_);
+  $$->children_[PARSE_SELECT_SELECT] = projects;
+  $$->children_[PARSE_SELECT_FROM] = tables;
+}
+;
+file_copy_options:
+/* empty */ { $$ = NULL; }
+| '(' file_copy_option_list ')' { merge_nodes($$, result, T_ARGUMENT_LIST, $2); }
+;
+file_copy_option_list:
+file_copy_option { $$ = $1; }
+| file_copy_option_list ',' file_copy_option
+{ malloc_non_terminal_node($$, result->malloc_pool_, T_LINK_NODE, 2, $1, $3); }
+;
+file_copy_option:
+relation_name file_sql_value
+{ malloc_non_terminal_node($$, result->malloc_pool_, T_FILE_SQL_OPTION, 2, $1, $2); }
+| relation_name COMP_EQ file_sql_value
+{ malloc_non_terminal_node($$, result->malloc_pool_, T_FILE_SQL_OPTION, 2, $1, $3); }
+| relation_name
+{
+  ParseNode *yes = NULL; malloc_terminal_node(yes, result->malloc_pool_, T_BOOL); yes->value_ = 1;
+  malloc_non_terminal_node($$, result->malloc_pool_, T_FILE_SQL_OPTION, 2, $1, yes);
+}
+| NULLX file_sql_value
+{
+  ParseNode *name = NULL; make_name_node(name, result->malloc_pool_, "nullstr");
+  malloc_non_terminal_node($$, result->malloc_pool_, T_FILE_SQL_OPTION, 2, name, $2);
+}
+| FORMAT relation_name
+{
+  ParseNode *name = NULL; make_name_node(name, result->malloc_pool_, "format");
+  $2->type_ = T_VARCHAR;
+  malloc_non_terminal_node($$, result->malloc_pool_, T_FILE_SQL_OPTION, 2, name, $2);
+}
+;
+
+file_sql_name:
+FILE_SQL_FUNCTION
+{
+  make_name_node($$, result->malloc_pool_, $1->keyword_name);
+}
+;
+
+file_sql_table:
+file_sql_name '(' file_sql_args ')'
+{
+  ParseNode *args = NULL;
+  merge_nodes(args, result, T_ARGUMENT_LIST, $3);
+  malloc_non_terminal_node($$, result->malloc_pool_, T_FILE_TABLE_EXPRESSION, 3, $1, args, NULL);
+}
+| file_sql_name '(' file_sql_args ')' relation_name
+{
+  ParseNode *args = NULL;
+  merge_nodes(args, result, T_ARGUMENT_LIST, $3);
+  malloc_non_terminal_node($$, result->malloc_pool_, T_FILE_TABLE_EXPRESSION, 3, $1, args, $5);
+}
+| file_sql_name '(' file_sql_args ')' AS relation_name
+{
+  ParseNode *args = NULL;
+  merge_nodes(args, result, T_ARGUMENT_LIST, $3);
+  malloc_non_terminal_node($$, result->malloc_pool_, T_FILE_TABLE_EXPRESSION, 3, $1, args, $6);
+}
+;
+file_sql_args:
+file_sql_arg { $$ = $1; }
+| file_sql_args ',' file_sql_arg
+{ malloc_non_terminal_node($$, result->malloc_pool_, T_LINK_NODE, 2, $1, $3); }
+;
+file_sql_arg:
+file_sql_value { $$ = $1; }
+| relation_name COMP_EQ file_sql_value
+{ malloc_non_terminal_node($$, result->malloc_pool_, T_FILE_SQL_OPTION, 2, $1, $3); }
+| relation_name SET_VAR file_sql_value
+{ malloc_non_terminal_node($$, result->malloc_pool_, T_FILE_SQL_OPTION, 2, $1, $3); }
+;
+file_sql_value:
+literal { $$ = $1; }
+| '-' INTNUM
+{ $$ = $2; $$->value_ = -$$->value_; }
+;
+
 hybrid_search_expr:
 HYBRID_SEARCH '(' literal ',' hybrid_search_param ')'
 {
@@ -18182,6 +18303,8 @@ ACCOUNT
 |       INCONSISTENT 
 |       INDIVIDUAL
 |       HYBRID_SEARCH
+|       FILE_SQL_FUNCTION
+|       FILE_SQL_COPY
 ;
 
 unreserved_keyword_special:

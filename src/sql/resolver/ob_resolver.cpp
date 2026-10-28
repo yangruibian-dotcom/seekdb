@@ -164,7 +164,7 @@ int ObResolver::resolve(IsPrepared if_prepared, const ParseNode &parse_tree, ObS
   }
 
   if (OB_SUCC(ret)) {
-    params_.resolver_scope_stmt_type_ = parse_tree.type_;
+    params_.resolver_scope_stmt_type_ = parse_tree.type_ == T_FILE_DESCRIBE ? T_SELECT : parse_tree.type_;
     params_.session_info_->set_stmt_type(
       ObResolverUtils::get_stmt_type_by_item_type(parse_tree.type_));
     ObExecContext *exec_ctx = params_.session_info_->get_cur_exec_ctx();
@@ -234,6 +234,7 @@ int ObResolver::resolve(IsPrepared if_prepared, const ParseNode &parse_tree, ObS
         REGISTER_STMT_RESOLVER(MergeTable);
         break;
       }
+      case T_FILE_DESCRIBE:
       case T_SELECT: {
         REGISTER_SELECT_STMT_RESOLVER(Select);
         break;
