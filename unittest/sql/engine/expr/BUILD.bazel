@@ -1,0 +1,19 @@
+load("//bazel:defs.bzl", "seekdb_cc_library", "seekdb_cc_test")
+
+package(default_testonly = True)
+
+seekdb_cc_library(
+    name = "ai_function_cases",
+    srcs = ["ob_expr_ai_prompt_test.cpp", "test_ob_openai_utils.cpp", "ai_function_test_main.cc"],
+    alwayslink = True,
+    deps = ["@seekdb_3rd_headers//:gtest"],
+    implementation_deps = ["//src/sql:sql_unit_test_interface"],
+)
+
+seekdb_cc_test(
+    name = "test_ai_function_enhancement",
+    size = "small",
+    deps = [":ai_function_cases", "@seekdb_3rd_headers//:gtest"],
+    linkopts = ["-pthread", "-ldl"],
+    target_compatible_with = ["@platforms//os:linux"],
+)
