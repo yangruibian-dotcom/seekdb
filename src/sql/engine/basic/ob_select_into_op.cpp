@@ -27,6 +27,8 @@
 #include "common/udt/ob_collection_type.h"
 #include "share/config/ob_server_config.h"
 #include "share/ob_lob_access_utils.h"
+#include "sql/engine/expr/ob_expr_lob_utils.h"
+#include "lib/allocator/page_arena.h"
 #include "sql/engine/basic/file_sql_native.h"
 
 namespace oceanbase
@@ -1337,7 +1339,31 @@ int ObSelectIntoOp::copy_current_row()
       ObObj obj;
       OZ (datum->to_obj(obj,expr->obj_meta_));
       int64_t pos = 0;
-      if (OB_SUCC(ret)) OZ (obj.print_plain_str_literal(copy_state_->buffer.data(),copy_state_->buffer.size(),pos));
+      ObObjPrintParams params;
+      params.cs_type_ = CS_TYPE_UTF8MB4_BIN;
+      params.use_memcpy_ = true;
+      if (OB_SUCC(ret) && ob_is_text_tc(obj.get_type())) {
+        // Debug printers render an out-of-row LOB as "outrow". Read the real
+        // contents only after checking its byte length, and release scratch
+        // allocations after this cell rather than retaining them for the query.
+        ObArenaAllocator temporary("FileCopyLob");
+        ObTextStringIter iter(obj);
+        int64_t length = 0;
+        ObString data;
+        OZ (ObTextStringHelper::build_text_iter(iter,ctx_,&temporary,&temporary));
+        OZ (iter.get_byte_len(length));
+        if (OB_SUCC(ret) && (length < 0 || uint64_t(length) > copy_state_->binding.options.max_record_bytes))
+          throw file_sql::Error("file SQL: output record limit exceeded");
+        OZ (iter.get_full_data(data));
+        if (OB_SUCC(ret)) {
+          ObObj text;
+          text.set_varchar(data);
+          text.set_collation_type(obj.get_collation_type());
+          OZ (text.print_plain_str_literal(copy_state_->buffer.data(),copy_state_->buffer.size(),pos,params));
+        }
+      } else if (OB_SUCC(ret)) {
+        OZ (obj.print_plain_str_literal(copy_state_->buffer.data(),copy_state_->buffer.size(),pos,params));
+      }
       if (OB_SUCC(ret)) { cell.text.assign(copy_state_->buffer.data(),pos); cell.type = file_sql::Type::Varchar; }
     }
     row.push_back(std::move(cell));

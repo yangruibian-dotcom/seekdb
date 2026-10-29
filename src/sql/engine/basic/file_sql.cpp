@@ -676,7 +676,26 @@ CsvOutput::~CsvOutput()
 }
 void CsvOutput::row(const Row &r)
 {
+  // Count the encoded row, including escaping and LF, before allocating it.
+  // Every successfully written row must obey the reader's record-size limit.
+  uint64_t encoded = 1;
+  auto charge = [&](uint64_t bytes) {
+    if(bytes > options_.max_record_bytes-encoded)fail("output record limit exceeded");
+    encoded += bytes;
+  };
+  for(size_t i=0;i<r.size();++i) {
+    if(i)charge(1);
+    const auto &c=r[i];
+    if(c.type==Type::Null)charge(options_.nullstr.size());
+    else {
+      if(c.text.find('\0')!=std::string::npos || !valid_utf8(c.text))
+        fail("invalid UTF-8 or NUL byte in CSV output");
+      charge(2);charge(c.text.size());
+      for(char ch:c.text)if(ch==options_.quote||ch==options_.escape)charge(1);
+    }
+  }
   std::string line;
+  line.reserve(encoded);
   for(size_t i=0;i<r.size();++i) {
     if(i)line+=options_.delimiter;auto &c=r[i];
     if(c.type==Type::Null)line+=options_.nullstr;
@@ -685,7 +704,6 @@ void CsvOutput::row(const Row &r)
       for(char ch:c.text){if(ch==options_.quote||ch==options_.escape)line+=options_.escape;line+=ch;}
       line+=options_.quote;
     }
-    if(line.size()>options_.max_record_bytes)fail("output record limit exceeded");
   }line+='\n';if(fwrite(line.data(),1,line.size(),file_)!=line.size())fail("output write failed");
 }
 void CsvOutput::commit()

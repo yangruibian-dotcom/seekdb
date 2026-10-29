@@ -66,6 +66,26 @@ int main(int argc,char **argv){
   fails([&]{CsvOutput csv(path_utf8(out),secure,o);},"exists");
   {CsvOutput csv(path_utf8((root/"aborted.csv")),secure,o);csv.row({{"a",Type::Varchar}});}
   check(!fs::exists(root/"aborted.csv"),"failed COPY cleanup");
+  {
+    auto bad_out=root/"invalid-output.csv";
+    {CsvOutput csv(path_utf8(bad_out),secure,o);
+     fails([&]{csv.row({{std::string("left\0right",10),Type::Varchar}});},"NUL");}
+    check(!fs::exists(bad_out),"NUL output is never published");
+    {CsvOutput csv(path_utf8(bad_out),secure,o);
+     fails([&]{csv.row({{std::string("\xc0\x80",2),Type::Varchar}});},"UTF-8");}
+    check(!fs::exists(bad_out),"invalid UTF-8 output is never published");
+    Options limited;limited.header=false;limited.max_record_bytes=8;
+    auto edge=root/"boundary-output.csv";
+    {CsvOutput csv(path_utf8(edge),secure,limited);csv.row({{"12345",Type::Varchar}});csv.commit();}
+    auto bound=oceanbase::sql::file_sql::bind(path_utf8(edge),secure,limited);
+    {Scan scan(bound,secure);Row row;check(scan.next(row)&&row[0].text=="12345","COPY record limit includes LF and reads back");}
+    {CsvOutput csv(path_utf8(bad_out),secure,limited);
+     fails([&]{csv.row({{"123456",Type::Varchar}});},"record limit");}
+    {CsvOutput csv(path_utf8(bad_out),secure,limited);
+     fails([&]{csv.row({{"\"\"\"",Type::Varchar}});},"record limit");}
+    check(!fs::exists(bad_out),"oversized encoded output is never published");
+    fs::remove(edge);
+  }
   for(auto &f:fs::directory_iterator(root))check(path_utf8(f.path().filename()).find(".seekdb-")==std::string::npos,"no temp leak");
   write(p,"a,b\n1\n");fails(bindcsv,"expected 2 fields");fails(bindcsv,"physical line 2");
   write(p,"a\n\"unterminated\n");fails(bindcsv,"record 2");

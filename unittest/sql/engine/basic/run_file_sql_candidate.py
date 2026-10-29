@@ -177,6 +177,24 @@ def main():
         export = data/'roundtrip.csv'
         query('COPY (SELECT id,name,amount FROM '+csv+' ORDER BY id) TO '+literal(export)+" (FORMAT CSV,HEADER,DELIMITER ';',NULLSTR 'NA')")
         assert query('SELECT COUNT(*),COUNT(amount),SUM(amount) FROM read_csv('+literal(export)+",delimiter=';',nullstr='NA')") == ((4,3,36.0),)
+        query('CREATE TABLE copy_payloads (id INT, body LONGTEXT, precise DOUBLE, stamp DATETIME(6))')
+        query("INSERT INTO copy_payloads VALUES (1,CONCAT('left',REPEAT('x',70000),'right'),1.2345678901234567,'2024-02-29 01:02:03.123456')")
+        query("INSERT INTO copy_payloads VALUES (2,NULL,NULL,NULL),(3,'',0,'2000-01-01'),(4,'中文',-1e-200,'1969-12-31 23:59:59.000001')")
+        payload_export=data/'payload-export.csv'
+        query('COPY copy_payloads TO '+literal(payload_export)+' (HEADER)')
+        payload_rows=query('SELECT id,LENGTH(body),LEFT(body,4),RIGHT(body,5),precise,stamp FROM read_csv('+literal(payload_export)+') ORDER BY id')
+        assert payload_rows == (
+            (1,70009,'left','right',1.2345678901234567,datetime.datetime(2024,2,29,1,2,3,123456)),
+            (2,None,None,None,None,None),
+            (3,0,'','',0.0,datetime.datetime(2000,1,1)),
+            (4,6,'中文','中文',-1e-200,datetime.datetime(1969,12,31,23,59,59,1))),payload_rows
+        nul_export=data/'nul-export.csv'
+        error("COPY (SELECT CONCAT('left',CHAR(0),'right') AS body) TO "+literal(nul_export),'NUL')
+        assert not nul_export.exists() and not list(data.glob('*.seekdb-*')),'invalid CSV output leaked a file'
+        invalid_export=data/'invalid-utf8-export.csv'
+        error('COPY (SELECT CAST(0xC080 AS BINARY) AS body) TO '+literal(invalid_export),'UTF-8')
+        assert not invalid_export.exists() and not list(data.glob('*.seekdb-*')),'invalid UTF-8 output leaked a file'
+        query('DROP TABLE copy_payloads')
         special=data/'中文.csv'
         special.write_bytes('name,value\r\n"x;\"\"quoted\"\"","line1\r\nline2"\r\n"NULL",\r\n'.encode('utf8'))
         special_sql='read_csv('+literal(special)+')'

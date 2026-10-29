@@ -1,12 +1,13 @@
 """Generate real Parquet fixtures; compare the native format reader with Arrow.
 
 Arrow is a test-data generator/oracle only. Production has no Arrow dependency.
-Usage: python test_file_parquet.py /path/to/test_file_scan_utils
+Usage: python test_file_parquet.py /path/to/test_file_scan_candidate
 """
 import datetime as dt
 import json
 from pathlib import Path
 import random
+import struct
 import subprocess
 import sys
 import tempfile
@@ -76,6 +77,51 @@ with tempfile.TemporaryDirectory(prefix='seekdb-parquet-') as temporary:
     run(bomb,root,ok=False)
     for payload in (b'',b'PAR1',b'PAR1'+b'\xff'*8):
         broken=root/'broken.parquet';broken.write_bytes(payload);run(broken,root,ok=False)
+    # Compact Thrift must retain field types. A binary row count must not
+    # silently become zero, and an overflowing i32 must not wrap into INT32.
+    def compact_integer(value):
+        zigzag=(value<<1)^(value>>63)
+        encoded=bytearray()
+        while zigzag>=128:
+            encoded.append((zigzag&127)|128)
+            zigzag>>=7
+        return bytes(encoded)+bytes([zigzag])
+
+    def compact_binary(value):
+        assert len(value)<128
+        return bytes([len(value)])+value
+
+    def empty_footer(path, row_count=b'\x16\x00', physical=1):
+        schema_root=b'\x48'+compact_binary(b'schema')+b'\x15\x02\x00'
+        leaf=b'\x15'+compact_integer(physical)+b'\x25\x02\x18'+compact_binary(b'value')+b'\x00'
+        footer=b'\x15\x02\x19\x2c'+schema_root+leaf+row_count+b'\x19\x0c\x00'
+        path.write_bytes(b'PAR1'+footer+struct.pack('<I',len(footer))+b'PAR1')
+
+    empty=root/'empty-footer.parquet'
+    empty_footer(empty)
+    assert pq.ParquetFile(empty).metadata.num_rows==0
+    assert run(empty,root)==[['value:BIGINT']]
+    wrong_type=root/'wrong-row-count-type.parquet'
+    empty_footer(wrong_type,row_count=b'\x18'+compact_binary(b'not-an-integer'))
+    run(wrong_type,root,ok=False)
+    wrong_bool=root/'boolean-row-count.parquet'
+    empty_footer(wrong_bool,row_count=b'\x12')
+    run(wrong_bool,root,ok=False)
+    overflow=root/'overflowing-physical-type.parquet'
+    empty_footer(overflow,physical=(1<<32)+1)
+    run(overflow,root,ok=False)
+    signed=root/'signed-logical-integers.parquet'
+    pq.write_table(pa.table({
+        'tiny':pa.array([-128,None,127],type=pa.int8()),
+        'short':pa.array([-32768,0,None],type=pa.int16()),
+        'integer':pa.array([-2147483648,None,2147483647],type=pa.int32()),
+    }),signed,row_group_size=2)
+    assert run(signed,root)==[
+        ['tiny:BIGINT','short:BIGINT','integer:BIGINT'],
+        ['-128','-32768','-2147483648'],['<NULL>','0','<NULL>'],['127','<NULL>','2147483647']]
+    unsigned=root/'unsupported-unsigned.parquet'
+    pq.write_table(pa.table({'value':pa.array([0,1,4294967295],type=pa.uint32())}),unsigned)
+    run(unsigned,root,ok=False)
     nulls=pa.table({'i':pa.array([None]*4,type=pa.int64()),'b':pa.array([None]*4,type=pa.bool_()),'s':pa.array([None]*4,type=pa.string())})
     for version in ('1.0','2.0'):
         nullpath=root/f'all-null-{version}.parquet'

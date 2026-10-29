@@ -16,18 +16,29 @@ uint64_t little(const std::string &s,size_t &p,size_t n)
 uint64_t varint(const std::string &s,size_t &p)
 {uint64_t n=0;for(int i=0;i<10;++i){auto b=little(s,p,1);if(i==9&&b>1)bad("varint overflow");n|=(b&127)<<(7*i);if(!(b&128))return n;}bad("invalid varint");}
 struct Node {
-  int64_t integer=0;std::string bytes;std::map<int,Node> fields;std::vector<Node> items;
+  int wire_type=0;int64_t integer=0;std::string bytes;std::map<int,Node> fields;std::vector<Node> items;
   const Node &get(int id)const{auto i=fields.find(id);if(i==fields.end())bad("missing metadata field "+std::to_string(id));return i->second;}
-  int64_t num(int id,int64_t def=0)const{auto i=fields.find(id);return i==fields.end()?def:i->second.integer;}
+  int64_t num(int id,int64_t def=0)const{
+    auto i=fields.find(id);if(i==fields.end())return def;
+    if(i->second.wire_type<3||i->second.wire_type>6)bad("invalid numeric metadata field "+std::to_string(id));
+    return i->second.integer;
+  }
+  bool flag(int id,bool def=false)const{
+    auto i=fields.find(id);if(i==fields.end())return def;
+    if(i->second.wire_type!=1&&i->second.wire_type!=2)bad("invalid boolean metadata field "+std::to_string(id));
+    return i->second.integer!=0;
+  }
   bool has(int id)const{return fields.find(id)!=fields.end();}
 };
 class Compact {
   const std::string &s_;size_t p_=0,nodes_=0;
   Node value(int type,int depth) {
-    if(++nodes_>200000||depth>24)bad("metadata resource limit");Node n;
+    if(++nodes_>200000||depth>24)bad("metadata resource limit");Node n;n.wire_type=type;
     if(type==1||type==2)n.integer=type==1;
     else if(type==3)n.integer=int8_t(little(s_,p_,1));
-    else if(type>=4&&type<=6){uint64_t v=varint(s_,p_);n.integer=int64_t(v>>1)^-int64_t(v&1);}
+    else if(type>=4&&type<=6){uint64_t v=varint(s_,p_);n.integer=int64_t(v>>1)^-int64_t(v&1);
+      if((type==4&&(n.integer<INT16_MIN||n.integer>INT16_MAX))
+          ||(type==5&&(n.integer<INT32_MIN||n.integer>INT32_MAX)))bad("integer metadata out of range");}
     else if(type==7)n.integer=little(s_,p_,8);
     else if(type==8){uint64_t len=varint(s_,p_);if(len>s_.size()-p_)bad("invalid string size");n.bytes=s_.substr(p_,len);p_+=len;}
     else if(type==9||type==10) {
@@ -174,7 +185,7 @@ class Parquet final : public IReader {
         if(dl<0||rl!=0||uint64_t(dl)>raw.size()||dl>uncompressed)bad("invalid V2 levels");
         if(sc.repetition==1)defs=hybrid(raw,pos,dl,1,count);else if(dl)bad("unexpected V2 definition levels");
         if(pos!=uint64_t(dl))bad("V2 level length mismatch");
-        data=raw.substr(0,dl)+decompress(raw.substr(dl),d.num(7,1)?chunk.codec:0,uncompressed-dl);pos=dl;
+        data=raw.substr(0,dl)+decompress(raw.substr(dl),d.flag(7,true)?chunk.codec:0,uncompressed-dl);pos=dl;
       } else {
         data=decompress(raw,chunk.codec,uncompressed);
         const Node &d=h.get(type==2?7:5);count=d.num(1);encoding=d.num(2);
@@ -241,7 +252,7 @@ public:
         else if(logical.has(8)) {
           if(sc.physical!=2)bad("TIMESTAMP must use INT64");sc.column.type=Type::Datetime;auto &unit=logical.get(8).get(2);
           sc.time_scale=unit.has(1)?1000:(unit.has(2)?1:(unit.has(3)?-1000:0));if(!sc.time_scale)bad("unknown timestamp unit");
-        }else if(logical.has(10)){if(!logical.get(10).num(2))bad("unsigned integer is unsupported");}
+        }else if(logical.has(10)){if(!logical.get(10).flag(2))bad("unsigned integer is unsupported");}
         else if(logical.has(11))sc.column.type=Type::Null;
         else if(!logical.has(1)&&!logical.has(11))bad("unsupported logical type");
       }
