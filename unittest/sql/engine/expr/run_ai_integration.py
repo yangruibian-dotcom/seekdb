@@ -70,6 +70,14 @@ def main():
         rerank, rerank_ep = model("_r", "rerank", "siliconflow", "/v1/rerank")
         ollama, ollama_ep = model("_o", "completion", "oLlAmA", "/api/generate", "")
         oe, _ = model("_oe", "dense_embedding", "ollama", "/api/embed", "")
+        for provider in ("Ollama", "OLLAMA", "ollama"):
+            rpc("ALTER_AI_MODEL_ENDPOINT", ollama_ep, {"provider": provider})
+            assert scalar("SELECT provider FROM oceanbase.DBA_OB_AI_MODEL_ENDPOINTS WHERE endpoint_name=%s", (ollama_ep,)) == provider
+            assert scalar("SELECT JSON_UNQUOTE(AI_COMPLETE(%s,'provider-only'))", (ollama,)) == "provider-only"
+        rpc("ALTER_AI_MODEL_ENDPOINT", ollama_ep, {"url": args.mock_url + "/api/generate"})
+        assert scalar("SELECT JSON_UNQUOTE(AI_COMPLETE(%s,'empty-key-retained'))", (ollama,)) == "empty-key-retained"
+        expect_error("CALL DBMS_AI_SERVICE.ALTER_AI_MODEL_ENDPOINT(%s,%s)", (ollama_ep, json.dumps({"provider":"OPENAI"})))
+        assert scalar("SELECT JSON_UNQUOTE(AI_COMPLETE(%s,'still-ollama'))", (ollama,)) == "still-ollama"
         assert scalar("SELECT JSON_UNQUOTE(AI_COMPLETE(%s,'雪',NULL))", (complete,)) == "雪"
         assert scalar("SELECT JSON_UNQUOTE(AI_COMPLETE(%s,AI_PROMPT('{0}/{0}', 'abc')))", (complete,)) == "abc/abc"
         assert scalar("SELECT JSON_UNQUOTE(AI_COMPLETE(%s,AI_PROMPT('{0}',AI_PROMPT('<{0}>','雪'))))", (complete,)) == "<雪>"
