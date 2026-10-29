@@ -74,6 +74,11 @@ def main():
         assert scalar("SELECT JSON_UNQUOTE(AI_COMPLETE(%s,AI_PROMPT('{0}/{0}', 'abc')))", (complete,)) == "abc/abc"
         assert scalar("SELECT JSON_UNQUOTE(AI_COMPLETE(%s,AI_PROMPT('{0}',AI_PROMPT('<{0}>','雪'))))", (complete,)) == "<雪>"
         assert scalar("SELECT JSON_UNQUOTE(AI_COMPLETE(%s,AI_PROMPT('{0}',JSON_ARRAY(1,2))))", (complete,)) == "[1, 2]"
+        assert scalar("SELECT JSON_UNQUOTE(AI_COMPLETE(%s,AI_PROMPT('{0}/{0}/{1}',JSON_ARRAY(1,true),JSON_OBJECT('k',2))))", (complete,)) == '[1, true]/[1, true]/{"k": 2}'
+        escaped = '雪\\\n"'
+        assert scalar("SELECT JSON_UNQUOTE(AI_COMPLETE(%s,AI_PROMPT('{0}',%s)))", (complete,escaped)) == escaped
+        for template in ('{1}', '{-1}', '{18446744073709551616}'):
+            expect_error("SELECT AI_COMPLETE(%s,AI_PROMPT(%s,'x'))", (complete,template))
         query("SELECT AI_COMPLETE(%s,'config',JSON_OBJECT('temperature',0.5,'max_tokens',7))", (complete,))
         body = requests()[-1]["body"]
         assert body["temperature"] == 0.5 and body["max_tokens"] == 7
