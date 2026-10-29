@@ -422,6 +422,8 @@ SQL_COMPOSITION_HEADERS = [
 ]
 
 SQL_PRIVATE_HEADERS = [
+    "engine/basic/file_sql.h",
+    "engine/basic/file_sql_native.h",
     "code_generator/ob_code_generator.h",
     "code_generator/ob_dml_cg_service.h",
     "code_generator/ob_static_engine_cg.h",

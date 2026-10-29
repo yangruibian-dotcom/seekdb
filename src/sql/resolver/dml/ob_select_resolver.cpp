@@ -999,6 +999,7 @@ int ObSelectResolver::resolve_normal_query(const ParseNode &parse_tree)
 
 int ObSelectResolver::resolve(const ParseNode &parse_tree)
 {
+  if (parse_tree.type_ == T_FILE_DESCRIBE) return resolve_file_describe(parse_tree);
   int ret = OB_SUCCESS;
   ObSelectStmt *select_stmt = NULL;
   bool is_stack_overflow = false;
@@ -3104,7 +3105,9 @@ int ObSelectResolver::resolve_into_clause(const ParseNode *node)
     } else {
       new(into_item) ObSelectIntoItem();
       into_item->into_type_ = node->type_;
-      if (T_INTO_OUTFILE == node->type_) { // into outfile
+      if (T_FILE_COPY == node->type_) {
+        ret = resolve_file_copy(*node, *into_item);
+      } else if (T_INTO_OUTFILE == node->type_) { // into outfile
         if (is_in_set_query()) {
           ret = OB_INAPPROPRIATE_INTO;
         } else if (node->num_child_ == 3 && NULL != node->children_[1]

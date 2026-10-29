@@ -3550,6 +3550,13 @@ _SQL_RUNTIME_GROUP_OBLIB_DEPS = {
     ],
 }
 
+# File decoders use the C++ runtime. Native integration uses the established
+# DML resolver's SQL/Share/OBLib seams; existing standalone indices stay stable.
+_SQL_RUNTIME_GROUP_OBLIB_DEPS["sql_runtime_standalone_5"] = []
+_SQL_RUNTIME_GROUP_OBLIB_DEPS["sql_runtime_standalone_6"] = _SQL_RUNTIME_GROUP_OBLIB_DEPS["ob_sql_resolver_dml_0"]
+_SQL_RUNTIME_GROUP_OBLIB_DEPS["sql_runtime_standalone_7"] = []
+_SQL_RUNTIME_GROUP_OBLIB_DEPS["sql_runtime_standalone_8"] = _SQL_RUNTIME_GROUP_OBLIB_DEPS["ob_sql_resolver_dml_0"]
+
 def sql_runtime_group_oblib_deps(groups, base = {}):
     actual = {group.name: True for group in groups}
     unknown = sorted([

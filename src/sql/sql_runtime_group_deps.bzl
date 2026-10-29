@@ -83,6 +83,7 @@ _SQL_RUNTIME_COMMON_SHARE_DEPS = [
 ]
 
 _SQL_RUNTIME_SHARE_FREE_GROUPS = [
+    "sql_runtime_standalone_7",
     'ob_sql_engine_vector_base_0',
     'ob_sql_engine_vector_cmp_0',
     'ob_sql_engine_vector_fixed_0',
@@ -90,6 +91,7 @@ _SQL_RUNTIME_SHARE_FREE_GROUPS = [
 ]
 
 _SQL_RUNTIME_SPARSE_SHARE_GROUPS = [
+    "sql_runtime_standalone_5",
     'ob_sql_engine_vector_continuous_0',
 ]
 
@@ -113,6 +115,8 @@ _SQL_RUNTIME_EXTRA_DEP_CONSUMERS = {
         'ob_sql_engine_expr_15',
     ],
     '@seekdb_3rd_headers//:fast_float_headers': [
+        'sql_runtime_standalone_5',
+        'ob_sql_engine_basic_0',
         'ob_sql_engine_expr_1',
     ],
     '@seekdb_3rd_headers//:icu_headers': [
@@ -123,6 +127,8 @@ _SQL_RUNTIME_EXTRA_DEP_CONSUMERS = {
         'ob_sql_engine_expr_13',
         'ob_sql_engine_expr_14',
         'ob_sql_resolver_dml_0',
+        'sql_runtime_standalone_6',
+        'sql_runtime_standalone_8',
         'ob_sql_session_0',
     ],
     '@seekdb_3rd_headers//:openssl_headers': [
@@ -187,6 +193,8 @@ _SQL_RUNTIME_EXTRA_DEP_CONSUMERS = {
         'ob_sql_resolver_ddl_1',
         'ob_sql_resolver_ddl_2',
         'ob_sql_resolver_dml_0',
+        'sql_runtime_standalone_6',
+        'sql_runtime_standalone_8',
         'ob_sql_resolver_expr_0',
         'ob_sql_rewrite_0',
         'ob_sql_rewrite_1',
@@ -228,6 +236,8 @@ _SQL_RUNTIME_EXTRA_DEP_CONSUMERS = {
         'ob_sql_plan_cache_0',
         'ob_sql_printer_0',
         'ob_sql_resolver_dml_0',
+        'sql_runtime_standalone_6',
+        'sql_runtime_standalone_8',
         'ob_sql_rewrite_0',
         'ob_sql_rewrite_1',
     ],
@@ -259,6 +269,8 @@ _SQL_RUNTIME_EXTRA_DEP_CONSUMERS = {
         'ob_sql_executor_1',
         'ob_sql_plan_cache_0',
         'ob_sql_resolver_dml_0',
+        'sql_runtime_standalone_6',
+        'sql_runtime_standalone_8',
         'ob_sql_resolver_expr_0',
         'sql_runtime_standalone_0',
         'sql_runtime_standalone_1',
@@ -306,6 +318,8 @@ _SQL_RUNTIME_EXTRA_DEP_CONSUMERS = {
         'ob_sql_engine_px_1',
         'ob_sql_engine_set_0',
         'ob_sql_resolver_dml_0',
+        'sql_runtime_standalone_6',
+        'sql_runtime_standalone_8',
         'ob_sql_resolver_expr_0',
         'sql_runtime_standalone_0',
         'sql_runtime_standalone_1',
@@ -330,6 +344,8 @@ _SQL_RUNTIME_EXTRA_DEP_CONSUMERS = {
         'ob_sql_resolver_0',
         'ob_sql_resolver_cmd_0',
         'ob_sql_resolver_dml_0',
+        'sql_runtime_standalone_6',
+        'sql_runtime_standalone_8',
     ],
     '//src/share:json_access': [
         'ob_sql_engine_expr_10',
@@ -436,6 +452,8 @@ _SQL_RUNTIME_EXTRA_DEP_CONSUMERS = {
         'ob_sql_resolver_ddl_1',
         'ob_sql_resolver_ddl_2',
         'ob_sql_resolver_dml_0',
+        'sql_runtime_standalone_6',
+        'sql_runtime_standalone_8',
         'ob_sql_resolver_expr_0',
         'ob_sql_rewrite_0',
         'ob_sql_rewrite_1',
@@ -493,6 +511,8 @@ _SQL_RUNTIME_EXTRA_DEP_CONSUMERS = {
         'ob_sql_resolver_ddl_1',
         'ob_sql_resolver_ddl_2',
         'ob_sql_resolver_dml_0',
+        'sql_runtime_standalone_6',
+        'sql_runtime_standalone_8',
         'ob_sql_resolver_expr_0',
         'ob_sql_rewrite_0',
         'ob_sql_rewrite_1',
@@ -529,6 +549,8 @@ _SQL_RUNTIME_EXTRA_DEP_CONSUMERS = {
         'ob_sql_engine_px_1',
         'ob_sql_engine_set_0',
         'ob_sql_resolver_dml_0',
+        'sql_runtime_standalone_6',
+        'sql_runtime_standalone_8',
         'ob_sql_resolver_expr_0',
         'ob_sql_tablelock_0',
         'sql_runtime_standalone_0',
@@ -567,6 +589,8 @@ _SQL_RUNTIME_EXTRA_DEP_CONSUMERS = {
         'ob_sql_executor_1',
         'ob_sql_plan_cache_0',
         'ob_sql_resolver_dml_0',
+        'sql_runtime_standalone_6',
+        'sql_runtime_standalone_8',
         'ob_sql_rewrite_0',
         'sql_runtime_standalone_3',
     ],
@@ -581,6 +605,8 @@ _SQL_RUNTIME_EXTRA_DEP_CONSUMERS = {
         'ob_sql_resolver_ddl_1',
         'ob_sql_resolver_ddl_2',
         'ob_sql_resolver_dml_0',
+        'sql_runtime_standalone_6',
+        'sql_runtime_standalone_8',
     ],
     '//src/share:table_access_runtime': [
         'ob_sql_tablelock_0',
@@ -593,6 +619,8 @@ _SQL_RUNTIME_EXTRA_DEP_CONSUMERS = {
         'ob_sql_resolver_0',
         'ob_sql_resolver_cmd_0',
         'ob_sql_resolver_dml_0',
+        'sql_runtime_standalone_6',
+        'sql_runtime_standalone_8',
     ],
     '//src/share:table_runtime': [
         'ob_sql_resolver_ddl_0',
@@ -630,11 +658,15 @@ _SQL_RUNTIME_EXTRA_DEP_CONSUMERS = {
         'ob_sql_executor_0',
         'ob_sql_printer_0',
         'ob_sql_resolver_dml_0',
+        'sql_runtime_standalone_6',
+        'sql_runtime_standalone_8',
     ],
     '//src/share:utility_types': [
         'ob_sql_common_0',
         'ob_sql_resolver_ddl_0',
         'ob_sql_resolver_dml_0',
+        'sql_runtime_standalone_6',
+        'sql_runtime_standalone_8',
         'ob_sql_session_0',
     ],
     '//src/share:vector': [
@@ -655,6 +687,9 @@ _SQL_RUNTIME_EXTRA_DEP_CONSUMERS = {
     ],
     '//src/share:worker_runtime': [
         'ob_sql_dtl_0',
+    ],
+    '@seekdb_3rd_headers//:rapidjson_headers': [
+        'sql_runtime_standalone_5',
     ],
 }
 

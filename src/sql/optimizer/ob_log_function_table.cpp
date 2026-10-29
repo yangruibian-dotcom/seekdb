@@ -83,7 +83,8 @@ int ObLogFunctionTable::get_plan_item_info(PlanText &plan_text,
   } else {
     BEGIN_BUF_PRINT;
     const ObRawExpr* value = get_value_expr();
-    EXPLAIN_PRINT_EXPR(value, type);
+    if (value->is_const_expr()) BUF_PRINTF("file_scan");
+    else EXPLAIN_PRINT_EXPR(value, type);
     END_BUF_PRINT(plan_item.special_predicates_,
                   plan_item.special_predicates_len_);
   }

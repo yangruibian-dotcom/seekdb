@@ -28,6 +28,7 @@ namespace oceanbase
 {
 namespace sql
 {
+struct FileCopyState;
 class ObSelectIntoOpInput : public ObOpInput
 {
   OB_UNIS_VERSION_V(1);
@@ -126,7 +127,8 @@ public:
       external_properties_(),
       format_type_(ObExternalFileFormat::FormatType::CSV_FORMAT),
       block_id_(0),
-      need_commit_(true)
+      need_commit_(true),
+      copy_state_(nullptr)
   {
   }
 
@@ -265,6 +267,9 @@ private:
 
 private:
   int64_t top_limit_cnt_;
+  int open_file_copy();
+  int next_file_copy();
+  int copy_current_row();
   bool is_first_;
   ObObj field_str_;
   ObObj line_str_;
@@ -292,6 +297,7 @@ private:
   ObExternalFileFormat::FormatType format_type_;
   uint32_t block_id_;
   bool need_commit_;
+  FileCopyState *copy_state_;
   static const int64_t SHARED_BUFFER_SIZE = 2LL * 1024 * 1024;
 
 };

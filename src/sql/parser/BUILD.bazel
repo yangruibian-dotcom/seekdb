@@ -122,7 +122,7 @@ cc_library(
     ],
     includes = ["."],
     tags = ["manual"],
-    visibility = ["//src/sql:__subpackages__"],
+    visibility = ["//src/sql:__subpackages__", "//unittest/sql/parser:__pkg__"],
 )
 
 # The Observer retrieval composition target needs the concrete boolean-query

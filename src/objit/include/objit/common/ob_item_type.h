@@ -2274,6 +2274,10 @@ typedef enum ObItemType
   T_FORK_DATABASE = 4917,
   T_DIFF_TABLE = 4918,
   T_MERGE_TABLE = 4919,
+  T_FILE_TABLE_EXPRESSION = 4921,
+  T_FILE_SQL_OPTION = 4922,
+  T_FILE_COPY = 4923,
+  T_FILE_DESCRIBE = 4924,
   T_MAX //Attention: add a new type before T_MAX
 } ObItemType;
 
