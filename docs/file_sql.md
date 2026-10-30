@@ -95,7 +95,8 @@ python3 bazel.py test --jobs=4 \
 独立格式测试无需启动数据库；以下 include 参数分别指向含 rapidjson/ 和 fast_float/ 子目录的目录：
 
 ```bash
-clang++ -std=c++20 -O1 -I src -I RAPIDJSON_INCLUDE -I FAST_FLOAT_INCLUDE \
+clang++ -std=c++20 -O1 -DFILE_SQL_READER_TEST_ENTRY -I src -I RAPIDJSON_INCLUDE -I FAST_FLOAT_INCLUDE \
+  unittest/all_tests_main.cpp \
   src/sql/engine/basic/file_sql.cpp \
   src/sql/engine/basic/file_sql_parquet.cpp \
   unittest/sql/engine/basic/test_file_scan_candidate.cpp \

@@ -15,7 +15,7 @@ void fails(const std::function<void()> &f,const char *text=""){
   check(failed,"expected failure");
 }
 void write(const fs::path &p,const std::string &s){std::ofstream f(p,std::ios::binary);f<<s;if(!f)throw std::runtime_error("write fixture failed");}
-int main(int argc,char **argv){
+int run_file_scan_candidate(int argc,char **argv){
  try{
   if(argc==4 || argc==5){
     Options o;o.format=argv[2];auto b=oceanbase::sql::file_sql::bind(argv[1],argv[3],o);Scan scan(b,argv[3]);Row row;
